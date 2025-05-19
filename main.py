@@ -1,5 +1,6 @@
 import requests
 import random, os
+import time
 LANG_CODES = [
     "af", "sq", "am", "ar", "hy", "az", "eu", "be", "bn", "bs", "bg", "ca",
     "ceb", "ny", "zh-CN", "zh-TW", "co", "hr", "cs", "da", "nl", "en", "eo",
@@ -23,6 +24,11 @@ FILE_OUTPUT_CHUNK_DIR = "dist/"
 TRANSLATE_COUNT = 6
 
 
+
+def write_log(string: str, file: str = "output.log"):
+    with open(file, 'a', encoding='utf-8') as f:
+        f.write(f"{string}\n")
+
 # Google Translate Function
 def google_translate(input_text: str, input_lang: str = "en", output_lang: str = "en") -> str:
     url = "https://translate.googleapis.com/translate_a/single"
@@ -34,6 +40,7 @@ def google_translate(input_text: str, input_lang: str = "en", output_lang: str =
         "q": input_text
     }
     response = requests.get(url, params=params)
+    time.sleep(0.5)
     response.raise_for_status()
     result = response.json()
     return result[0][0][0]
@@ -94,6 +101,7 @@ def do_me(target_json: str, output_json: str):
     keys = {k: v for k, v in keys.items() if k not in existing_translations}
     if not keys:
         print(f"All keys in {target_json} already translated in {output_json}")
+        write_log(f"All keys in {target_json} already translated in {output_json}")
         return
 
     # Open in r+ mode to append new entries
@@ -122,9 +130,11 @@ def do_me(target_json: str, output_json: str):
         for key, value in keys.items():
             try:
                 translation = random_translate(input_text=value, input_lang="en", output_lang="en", count=TRANSLATE_COUNT)
-                print(f"Translating(file {target_json} -> {output_json}): {key}              : {value} -> {translation}")
+                print(f"Translated(file {target_json} -> {output_json}){key.ljust(30)}: {value} -> {translation}", end='\r', flush=True)
+                write_log(f"Translated(file {target_json} -> {output_json}){key.ljust(30)}: {value} -> {translation}")
             except RuntimeError:
-                print(f"Could not translate {key}")
+                print(f"Could not translate {key} in {target_json} , fallback is {value}")
+                write_log(f"Could not translate {key} in {target_json} , fallback is {value}")
                 translation = value  # fallback
 
             if not first:
@@ -134,6 +144,7 @@ def do_me(target_json: str, output_json: str):
             first = False
         f.write("\n}")
     print(f"Wrote translations incrementally to {output_json}")
+    write_log(f"Wrote translations incrementally to {output_json}")
 
 
 
@@ -160,7 +171,7 @@ def main():
         dist_files.append(dist_file)
 
     # Use ThreadPoolExecutor to parallelize do_me calls
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(do_me, chunk_files[i], dist_files[i]) for i in range(num_chunks)]
         for future in concurrent.futures.as_completed(futures):
             future.result()  # propagate exceptions if any
@@ -169,7 +180,8 @@ def main():
     with open("gte.json", 'w', encoding='utf-8') as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
 
-    print("All chunks processed and merged into gte.json")
+    print("All chunks processed and merged.")
+    write_log("All chunks processed and merged.")
 
 if __name__ == "__main__":
     try: 
