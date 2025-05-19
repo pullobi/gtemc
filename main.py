@@ -1,6 +1,7 @@
-import requests
+import requests 
 import random, os
 import time
+import shutil
 LANG_CODES = [
     "af", "sq", "am", "ar", "hy", "az", "eu", "be", "bn", "bs", "bg", "ca",
     "ceb", "ny", "zh-CN", "zh-TW", "co", "hr", "cs", "da", "nl", "en", "eo",
@@ -86,6 +87,15 @@ def merge_json_files(file_paths: list[str]) -> dict:
     return merged
 
 
+def print_overwrite(message, width=80):
+    print(' ' * width, end='\r')        # Clear the line with spaces
+    print(message.ljust(width), end='\r', flush=True)  # Print new message padded to width
+
+def log(message):
+    columns, _ = shutil.get_terminal_size(fallback=(80, 20))
+    print_overwrite(message=message, width=columns)
+    write_log(message)
+
 def do_me(target_json: str, output_json: str):
     keys = read_json(target_json)
     # Load already translated keys if output_json exists
@@ -100,8 +110,7 @@ def do_me(target_json: str, output_json: str):
     # Filter out already translated keys
     keys = {k: v for k, v in keys.items() if k not in existing_translations}
     if not keys:
-        print(f"All keys in {target_json} already translated in {output_json}")
-        write_log(f"All keys in {target_json} already translated in {output_json}")
+        log(f"All keys in {target_json} already translated in {output_json}")
         return
 
     # Open in r+ mode to append new entries
@@ -130,11 +139,11 @@ def do_me(target_json: str, output_json: str):
         for key, value in keys.items():
             try:
                 translation = random_translate(input_text=value, input_lang="en", output_lang="en", count=TRANSLATE_COUNT)
-                print(f"Translated(file {target_json} -> {output_json}){key.ljust(30)}: {value} -> {translation}", end='\r', flush=True)
-                write_log(f"Translated(file {target_json} -> {output_json}){key.ljust(30)}: {value} -> {translation}")
+                log(f"({target_json} -> {output_json}) : {key.ljust(30)}: {value} -> {translation}")
+                
             except RuntimeError:
-                print(f"Could not translate {key} in {target_json} , fallback is {value}")
-                write_log(f"Could not translate {key} in {target_json} , fallback is {value}")
+                log(f"Could not translate {key} in {target_json} , fallback is {value}")
+                
                 translation = value  # fallback
 
             if not first:
@@ -143,8 +152,7 @@ def do_me(target_json: str, output_json: str):
             f.write(json_entry)
             first = False
         f.write("\n}")
-    print(f"Wrote translations incrementally to {output_json}")
-    write_log(f"Wrote translations incrementally to {output_json}")
+    log(f"Wrote translations incrementally to {output_json}")
 
 
 
@@ -180,11 +188,10 @@ def main():
     with open("gte.json", 'w', encoding='utf-8') as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
 
-    print("All chunks processed and merged.")
-    write_log("All chunks processed and merged.")
+    log("All chunks processed and merged.")
 
 if __name__ == "__main__":
     try: 
         main()
     except KeyboardInterrupt:
-        print("exiting")
+        log("exiting")
